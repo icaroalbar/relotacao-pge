@@ -156,6 +156,15 @@ def encerrar_ciclo(ciclo_id: str, db: Session) -> ResultadoEncerramento:
     if ciclo.status != "EM_CURSO":
         raise ValueError(f"Ciclo '{ciclo_id}' não está EM_CURSO")
 
+    # Regra: total de procuradores deve ser igual ao total de vagas (nem sobra nem falta)
+    total_procs = db.query(Procurador).count()
+    vagas_ciclo_count = db.query(Vaga).filter(Vaga.ciclo_id == ciclo_id).count()
+    if total_procs != vagas_ciclo_count:
+        raise ValueError(
+            f"Não é possível encerrar: {total_procs} procuradores ≠ {vagas_ciclo_count} vagas. "
+            f"Ajuste as áreas até que os totais sejam iguais."
+        )
+
     hoje = date.today()
 
     # 1. Snapshot: todas as vagas do ciclo

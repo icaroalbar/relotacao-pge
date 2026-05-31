@@ -28,7 +28,7 @@ export default function EncerrarCiclo() {
   const totalVagas = areas?.reduce((s, a) => s + a.total_vagas, 0) ?? 0
   const totalProcs = procs?.length ?? 0
   const saldo = totalProcs - totalVagas
-  const orcamentOk = saldo >= 0
+  const orcamentOk = saldo === 0
 
   async function handleCreateCiclo() {
     if (!novoCicloId.trim()) return
@@ -71,7 +71,8 @@ export default function EncerrarCiclo() {
             </strong>
           </span>
         </div>
-        {!orcamentOk && <p className="text-xs text-red-600 mt-1">Excedente de vagas. Ajuste em Áreas & Vagas antes de encerrar.</p>}
+        {saldo > 0 && <p className="text-xs text-red-600 mt-1">Sobram {saldo} procuradores sem vaga. Adicione vagas em Áreas & Vagas.</p>}
+        {saldo < 0 && <p className="text-xs text-red-600 mt-1">Sobram {Math.abs(saldo)} vagas sem procurador. Reduza vagas em Áreas & Vagas.</p>}
       </div>
 
       {!ciclo ? (
