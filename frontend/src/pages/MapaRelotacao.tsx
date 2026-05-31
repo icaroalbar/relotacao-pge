@@ -108,11 +108,13 @@ function VagaCard({ vaga, procById, onEdit, onClear }: {
             Nº {proc.antiguidade}
           </span>
 
-          {/* Cargo + info */}
-          <p className="text-[10px] text-gray-500 leading-tight mt-auto">
-            {vaga.cargo && <>{vaga.cargo} • </>}
-            {prefInfo || TIPO_VAGA_LABEL[vaga.tipo]}
-          </p>
+          {/* Cargo + info (prefInfo só existe para acervo) */}
+          {(vaga.cargo || prefInfo) && (
+            <p className="text-[10px] text-gray-500 leading-tight mt-auto">
+              {vaga.cargo && <>{vaga.cargo}{prefInfo ? ' • ' : ''}</>}
+              {prefInfo}
+            </p>
+          )}
 
           {/* Ações (todos os tipos editáveis) */}
           <div className="absolute bottom-2 right-2 flex gap-1">
