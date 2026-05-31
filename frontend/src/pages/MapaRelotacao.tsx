@@ -36,22 +36,24 @@ function VagaCard({ vaga, procMap, onEdit }: {
   procMap: Record<number, string>
   onEdit: (v: Vaga) => void
 }) {
+  // PG e ACERVO são editáveis diretamente no mapa
+  const isEditable = vaga.tipo === 'ACERVO' || vaga.tipo === 'PG'
   const isAcervo = vaga.tipo === 'ACERVO'
   const nome = vaga.ocupante_id ? procMap[vaga.ocupante_id] : null
   const firstName = nome?.split(' ').slice(0, 2).join(' ')
 
   return (
     <div
-      onClick={() => isAcervo && onEdit(vaga)}
+      onClick={() => isEditable && onEdit(vaga)}
       style={{
         borderColor: TIPO_BORDER[vaga.tipo],
         backgroundColor: TIPO_BG[vaga.tipo],
         borderWidth: 2,
         borderStyle: 'solid',
-        cursor: isAcervo ? 'pointer' : 'default',
+        cursor: isEditable ? 'pointer' : 'default',
       }}
       className={`rounded-lg p-2 flex flex-col items-center justify-center min-h-[90px] transition-shadow ${
-        isAcervo ? 'hover:shadow-md' : ''
+        isEditable ? 'hover:shadow-md' : ''
       }`}
     >
       {/* Número */}
@@ -76,7 +78,7 @@ function VagaCard({ vaga, procMap, onEdit }: {
         <span className="text-[10px] text-gray-300 mt-1">livre</span>
       )}
 
-      {/* Indicador manual */}
+      {/* Indicador manual (só acervo) */}
       {vaga.origem === 'MANUAL' && isAcervo && (
         <span className="text-[9px] mt-0.5" style={{ color: '#BB9B32' }}>● manual</span>
       )}
