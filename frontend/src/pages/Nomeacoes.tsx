@@ -40,10 +40,10 @@ function VagaRow({ vaga, procs, onSave }: {
       <td className="px-4 py-2">
         {editing
           ? <div className="flex gap-1">
-              <button onClick={save} className="text-xs bg-blue-600 text-white px-2 py-1 rounded">Salvar</button>
+              <button onClick={save} className="text-xs bg-[#005A92] text-white px-2 py-1 rounded">Salvar</button>
               <button onClick={() => setEditing(false)} className="text-xs border px-2 py-1 rounded">Cancel</button>
             </div>
-          : <button onClick={() => setEditing(true)} className="text-xs text-blue-600 hover:underline">Editar</button>}
+          : <button onClick={() => setEditing(true)} className="text-xs text-[#005A92] hover:underline">Editar</button>}
       </td>
     </tr>
   )

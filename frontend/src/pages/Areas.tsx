@@ -78,7 +78,7 @@ export default function Areas() {
           <p className="text-gray-500 text-sm mt-1">Total de vagas: <strong>{totalVagas}</strong></p>
         </div>
         <button onClick={openCreate}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">
+          className="flex items-center gap-2 bg-[#005A92] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#004470]">
           <Plus size={16} /> Nova área
         </button>
       </div>
@@ -104,11 +104,11 @@ export default function Areas() {
                 <td className="px-3 py-2 text-center text-red-600">{a.vagas_nomeacao || '–'}</td>
                 <td className="px-3 py-2 text-center text-green-600">{a.vagas_escolha || '–'}</td>
                 <td className="px-3 py-2 text-center text-yellow-600">{a.vagas_designacao || '–'}</td>
-                <td className="px-3 py-2 text-center text-blue-600">{a.vagas_acervo || '–'}</td>
+                <td className="px-3 py-2 text-center text-[#005A92]">{a.vagas_acervo || '–'}</td>
                 <td className="px-3 py-2 text-center font-bold">{a.total_vagas}</td>
                 <td className="px-3 py-2">
                   <div className="flex gap-1">
-                    <button onClick={() => openEdit(a)} className="text-gray-400 hover:text-blue-600 p-1">
+                    <button onClick={() => openEdit(a)} className="text-gray-400 hover:text-[#005A92] p-1">
                       <Pencil size={14} />
                     </button>
                     <button onClick={() => handleDelete(a.codigo)} className="text-gray-400 hover:text-red-600 p-1">
@@ -131,7 +131,7 @@ export default function Areas() {
               <button onClick={() => setModal(null)} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">
                 Cancelar
               </button>
-              <button onClick={handleSave} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+              <button onClick={handleSave} className="px-4 py-2 text-sm bg-[#005A92] text-white rounded hover:bg-[#004470]">
                 Salvar
               </button>
             </>

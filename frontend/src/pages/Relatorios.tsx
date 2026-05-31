@@ -8,7 +8,7 @@ function RelBtn({ label, href, disabled }: { label: string; href: string; disabl
       href={disabled ? '#' : href}
       onClick={e => disabled && e.preventDefault()}
       className={`flex items-center gap-2 border rounded-lg px-4 py-3 text-sm transition-colors
-        ${disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-50 hover:border-blue-400 text-blue-700'}`}
+        ${disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-50 hover:border-[#005A92] text-[#005A92]'}`}
     >
       <Download size={15} />
       {label}

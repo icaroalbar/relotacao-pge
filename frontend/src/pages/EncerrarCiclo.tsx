@@ -93,7 +93,7 @@ export default function EncerrarCiclo() {
           </div>
           {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
           <button onClick={handleCreateCiclo} disabled={!novoCicloId.trim()}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-40">
+            className="flex items-center gap-2 bg-[#005A92] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#004470] disabled:opacity-40">
             <Plus size={16} /> Criar ciclo e gerar vagas
           </button>
         </div>
@@ -103,7 +103,7 @@ export default function EncerrarCiclo() {
           <div className="bg-white border rounded-lg p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="font-semibold">Ciclo ativo: <span className="text-blue-600">{ciclo.id}</span></h2>
+                <h2 className="font-semibold">Ciclo ativo: <span className="text-[#005A92]">{ciclo.id}</span></h2>
                 <p className="text-xs text-gray-500 mt-1">
                   Aberto em {new Date(ciclo.abertura).toLocaleDateString('pt-BR')}
                 </p>
@@ -118,7 +118,7 @@ export default function EncerrarCiclo() {
                 Serial Dictatorship por antiguidade. Idempotente — pode rodar múltiplas vezes.
               </p>
               <button onClick={handleAlocar} disabled={alocar.isPending}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-40">
+                className="flex items-center gap-2 bg-[#005A92] text-white px-4 py-2 rounded text-sm hover:bg-[#004470] disabled:opacity-40">
                 <Play size={14} /> {alocar.isPending ? 'Alocando...' : 'Alocar acervo'}
               </button>
               {alocResult && (
