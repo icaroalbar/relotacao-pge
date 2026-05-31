@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useAreas } from '../api/areas'
 import { useVagas, useUpdateVaga } from '../api/vagas'
 import { useProcuradores } from '../api/procuradores'
@@ -54,18 +55,27 @@ export default function EscolhaChefes() {
   const { data: vagas } = useVagas(ciclo ? { ciclo_id: ciclo.id, tipo: 'ESCOLHA' } : undefined)
   const { data: procs } = useProcuradores()
   const update = useUpdateVaga()
+  const [areaFilter, setAreaFilter] = useState('')
 
   if (isLoading) return <Spinner />
   if (!ciclo) return <p className="p-8 text-amber-600">Nenhum ciclo ativo.</p>
 
+  const filteredVagas = (vagas ?? []).filter(v => !areaFilter || v.area_codigo === areaFilter)
   const vagasPorArea: Record<string, Vaga[]> = {}
-  for (const v of vagas ?? []) vagasPorArea[v.area_codigo] = [...(vagasPorArea[v.area_codigo] ?? []), v]
+  for (const v of filteredVagas) vagasPorArea[v.area_codigo] = [...(vagasPorArea[v.area_codigo] ?? []), v]
 
   return (
     <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Escolha dos Chefes</h1>
-        <p className="text-sm text-gray-500 mt-1">Ciclo <strong>{ciclo.id}</strong> — vagas <span className="text-green-600">escolha (verde)</span></p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Escolha dos Chefes</h1>
+          <p className="text-sm text-gray-500 mt-1">Ciclo <strong>{ciclo.id}</strong> — vagas <span className="text-green-600">escolha (verde)</span></p>
+        </div>
+        <select value={areaFilter} onChange={e => setAreaFilter(e.target.value)}
+          className="border rounded px-3 py-2 text-sm">
+          <option value="">Todas as áreas</option>
+          {areas?.map(a => <option key={a.codigo} value={a.codigo}>{a.codigo} — {a.nome}</option>)}
+        </select>
       </div>
 
       {Object.entries(vagasPorArea).map(([cod, vs]) => {

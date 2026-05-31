@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useVagas, useUpdateVaga } from '../api/vagas'
 import { useProcuradores } from '../api/procuradores'
 import { useCicloAtual } from '../api/ciclos'
+import { useAreas } from '../api/areas'
 import Spinner from '../components/Spinner'
 import type { Vaga } from '../types'
 
@@ -9,13 +10,17 @@ export default function Designacoes() {
   const { data: ciclo, isLoading } = useCicloAtual()
   const { data: vagas } = useVagas(ciclo ? { ciclo_id: ciclo.id, tipo: 'DESIGNACAO' } : undefined)
   const { data: procs } = useProcuradores()
+  const { data: areas } = useAreas()
   const update = useUpdateVaga()
   const [editId, setEditId] = useState<number | null>(null)
   const [ocupante, setOcupante] = useState('')
   const [cargo, setCargo] = useState('')
+  const [areaFilter, setAreaFilter] = useState('')
 
   if (isLoading) return <Spinner />
   if (!ciclo) return <p className="p-8 text-amber-600">Nenhum ciclo ativo.</p>
+
+  const filteredVagas = (vagas ?? []).filter(v => !areaFilter || v.area_codigo === areaFilter)
 
   function startEdit(v: Vaga) { setEditId(v.id); setOcupante(String(v.ocupante_id ?? '')); setCargo(v.cargo ?? '') }
   async function save() {
@@ -26,9 +31,16 @@ export default function Designacoes() {
 
   return (
     <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Designações do PG</h1>
-        <p className="text-sm text-gray-500 mt-1">Ciclo <strong>{ciclo.id}</strong> — vagas <span className="text-yellow-600">designação (amarelo)</span> do Gabinete</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Designações do PG</h1>
+          <p className="text-sm text-gray-500 mt-1">Ciclo <strong>{ciclo.id}</strong> — vagas <span className="text-yellow-600">designação (amarelo)</span></p>
+        </div>
+        <select value={areaFilter} onChange={e => setAreaFilter(e.target.value)}
+          className="border rounded px-3 py-2 text-sm">
+          <option value="">Todas as áreas</option>
+          {areas?.map(a => <option key={a.codigo} value={a.codigo}>{a.codigo} — {a.nome}</option>)}
+        </select>
       </div>
 
       <div className="bg-white border rounded-lg overflow-hidden">
@@ -41,7 +53,7 @@ export default function Designacoes() {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {vagas?.map(v => {
+            {filteredVagas.map(v => {
               const procNome = procs?.find(p => p.id === v.ocupante_id)?.nome
               const isEditing = editId === v.id
               return (
@@ -77,7 +89,7 @@ export default function Designacoes() {
             })}
           </tbody>
         </table>
-        {(vagas?.length ?? 0) === 0 && (
+        {filteredVagas.length === 0 && (
           <p className="px-4 py-8 text-center text-gray-400 text-sm">Nenhuma vaga de designação encontrada.</p>
         )}
       </div>
