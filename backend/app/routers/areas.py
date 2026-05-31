@@ -4,11 +4,20 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from sqlalchemy import case as sa_case
+
 from app.database import get_db
 from app.models.area import Area
 from app.models.ciclo import Ciclo
 from app.models.vaga import Vaga
 from app.schemas.area import AreaCreate, AreaUpdate, AreaOut
+
+_TIPO_ORDER = sa_case(
+    (Area.tipo == "GABINETE",      0),
+    (Area.tipo == "ESPECIALIZADA", 1),
+    (Area.tipo == "REGIONAL",      2),
+    else_=3,
+)
 
 router = APIRouter()
 
@@ -49,7 +58,7 @@ def _sincronizar_vagas(area: Area, ciclo_id: str, db: Session) -> None:
 
 @router.get("", response_model=List[AreaOut])
 def listar_areas(db: Session = Depends(get_db)):
-    return db.query(Area).order_by(Area.codigo).all()
+    return db.query(Area).order_by(_TIPO_ORDER, Area.codigo).all()
 
 
 @router.get("/{codigo}", response_model=AreaOut)
