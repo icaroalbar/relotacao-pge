@@ -60,12 +60,12 @@ export default function EncerrarCiclo() {
     <div className="p-8 max-w-2xl">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Ciclo</h1>
 
-      {/* orçamento */}
+      {/* atenção */}
       <div className={`mb-6 p-4 rounded-lg border ${orcamentOk ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
         <div className="flex items-center gap-2">
-          {!orcamentOk && <AlertTriangle size={16} className="text-red-500" />}
+          <AlertTriangle size={16} className={orcamentOk ? 'text-green-600' : 'text-red-500'} />
           <span className="font-medium text-sm">
-            Orçamento: {totalProcs} procuradores / {totalVagas} vagas — saldo{' '}
+            Atenção: {totalProcs} procuradores / {totalVagas} vagas — saldo{' '}
             <strong className={orcamentOk ? 'text-green-700' : 'text-red-700'}>
               {saldo >= 0 ? `+${saldo}` : saldo}
             </strong>
