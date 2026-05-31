@@ -47,12 +47,33 @@ def criar_vaga(payload: VagaCreate, db: Session = Depends(get_db)):
 
 @router.patch("/{id}", response_model=VagaOut)
 def atualizar_vaga(id: int, payload: VagaUpdate, db: Session = Depends(get_db)):
-    """R3: edição manual sempre permitida. Se tipo==ACERVO, força origem=MANUAL."""
+    """
+    R3: edição manual sempre permitida. Se tipo==ACERVO, força origem=MANUAL.
+    Regra de unicidade: procurador só pode ocupar uma vaga por vez.
+    Se já estiver em outra vaga do mesmo ciclo, aquela é liberada automaticamente.
+    """
     vaga = db.get(Vaga, id)
     if not vaga:
         raise HTTPException(404, f"Vaga {id} não encontrada")
 
     dados = payload.model_dump(exclude_unset=True)
+    novo_ocupante_id = dados.get("ocupante_id")
+
+    # Liberar vaga anterior do procurador (unicidade)
+    if novo_ocupante_id is not None:
+        vaga_anterior = (
+            db.query(Vaga)
+            .filter(
+                Vaga.ocupante_id == novo_ocupante_id,
+                Vaga.id != id,
+                Vaga.ciclo_id == vaga.ciclo_id,
+            )
+            .first()
+        )
+        if vaga_anterior:
+            vaga_anterior.ocupante_id = None
+            # Se era acervo automático, volta a ser automática (livre)
+            # Se era manual, mantém origem mas fica livre
 
     # R3: alterar ocupante de vaga azul marca como MANUAL
     if "ocupante_id" in dados and vaga.tipo == "ACERVO":

@@ -281,52 +281,85 @@ export default function MapaRelotacao() {
       </div>
 
       {/* Modal */}
-      {editVaga && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-xl w-96 mx-4 p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="inline-flex items-center justify-center w-9 h-9 rounded-full text-white text-sm font-bold"
-                style={{ backgroundColor: TIPO_BORDER[editVaga.tipo] }}>
-                {editVaga.numero}
-              </span>
-              <div>
-                <h2 className="font-semibold text-gray-800">Editar vaga</h2>
-                <p className="text-xs text-gray-400">
-                  {editVaga.area_codigo} · {TIPO_VAGA_LABEL[editVaga.tipo]}
-                  {editVaga.cargo && ` · ${editVaga.cargo}`}
-                </p>
+      {editVaga && (() => {
+        // Verificar se o procurador selecionado já está em outra vaga
+        const procIdSel = selectedProc ? Number(selectedProc) : null
+        const vagaAtualDoProc = procIdSel
+          ? (vagas ?? []).find(v => v.ocupante_id === procIdSel && v.id !== editVaga.id)
+          : null
+        const areaAtual = vagaAtualDoProc
+          ? (areas ?? []).find(a => a.codigo === vagaAtualDoProc.area_codigo)
+          : null
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-xl shadow-xl w-[420px] mx-4 p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="inline-flex items-center justify-center w-9 h-9 rounded-full text-white text-sm font-bold"
+                  style={{ backgroundColor: TIPO_BORDER[editVaga.tipo] }}>
+                  {editVaga.numero}
+                </span>
+                <div>
+                  <h2 className="font-semibold text-gray-800">Editar vaga</h2>
+                  <p className="text-xs text-gray-400">
+                    {editVaga.area_codigo} · {TIPO_VAGA_LABEL[editVaga.tipo]}
+                    {editVaga.cargo && ` · ${editVaga.cargo}`}
+                  </p>
+                </div>
+              </div>
+
+              <label className="block text-xs font-medium text-gray-700 mb-1">Procurador</label>
+              <select
+                value={selectedProc}
+                onChange={e => setSelectedProc(e.target.value)}
+                className="w-full border rounded px-2 py-1.5 text-sm mb-3"
+              >
+                <option value="">— Vaga livre —</option>
+                {(procs ?? [])
+                  .filter(p => p.ativo)
+                  .sort((a, b) => a.antiguidade - b.antiguidade)
+                  .map(p => (
+                    <option key={p.id} value={p.id}>
+                      [Nº {p.antiguidade}] {p.nome}
+                    </option>
+                  ))}
+              </select>
+
+              {/* Aviso: procurador já alocado em outra vaga */}
+              {vagaAtualDoProc && (
+                <div className="mb-3 flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2.5 text-sm">
+                  <span className="text-amber-500 mt-0.5 shrink-0">⚠</span>
+                  <div>
+                    <p className="text-amber-800 font-medium leading-tight">
+                      Este procurador já está alocado
+                    </p>
+                    <p className="text-amber-700 text-xs mt-0.5">
+                      Vaga Nº {vagaAtualDoProc.numero} — {vagaAtualDoProc.area_codigo}
+                      {areaAtual ? ` (${areaAtual.nome})` : ''}
+                      {vagaAtualDoProc.cargo ? ` · ${vagaAtualDoProc.cargo}` : ''}
+                    </p>
+                    <p className="text-amber-600 text-xs mt-1 font-medium">
+                      Ao salvar, aquela vaga ficará livre.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setEditVaga(null)}
+                  className="px-4 py-2 text-sm border rounded hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button onClick={handleSave}
+                  className="px-4 py-2 text-sm text-white rounded"
+                  style={{ backgroundColor: vagaAtualDoProc ? '#B45309' : '#005A92' }}>
+                  {vagaAtualDoProc ? 'Substituir e salvar' : 'Salvar'}
+                </button>
               </div>
             </div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Procurador</label>
-            <select
-              value={selectedProc}
-              onChange={e => setSelectedProc(e.target.value)}
-              className="w-full border rounded px-2 py-1.5 text-sm mb-4"
-            >
-              <option value="">— Vaga livre —</option>
-              {(procs ?? [])
-                .filter(p => p.ativo)
-                .sort((a, b) => a.antiguidade - b.antiguidade)
-                .map(p => (
-                  <option key={p.id} value={p.id}>
-                    [Nº {p.antiguidade}] {p.nome}
-                  </option>
-                ))}
-            </select>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setEditVaga(null)}
-                className="px-4 py-2 text-sm border rounded hover:bg-gray-50">
-                Cancelar
-              </button>
-              <button onClick={handleSave}
-                className="px-4 py-2 text-sm text-white rounded"
-                style={{ backgroundColor: '#005A92' }}>
-                Salvar
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
