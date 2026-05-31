@@ -36,8 +36,7 @@ function VagaCard({ vaga, procMap, onEdit }: {
   procMap: Record<number, string>
   onEdit: (v: Vaga) => void
 }) {
-  // PG e ACERVO são editáveis diretamente no mapa
-  const isEditable = vaga.tipo === 'ACERVO' || vaga.tipo === 'PG'
+  const isEditable = true
   const isAcervo = vaga.tipo === 'ACERVO'
   const nome = vaga.ocupante_id ? procMap[vaga.ocupante_id] : null
   const firstName = nome?.split(' ').slice(0, 2).join(' ')
