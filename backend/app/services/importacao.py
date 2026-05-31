@@ -81,15 +81,111 @@ def _int_cell(row, idx: int, default: int = 0) -> int:
 
 
 def ler_planilha(caminho: str) -> ImportResult:
+    """
+    Detecta automaticamente o formato:
+    - Formato combinado: sheet com colunas Antiguidade | Nome | LotacaoAtual | [códigos de área...]
+    - Formato multi-sheet: sheets separadas Procuradores + Preferencias + Areas + Nomeacoes
+    """
     result = ImportResult()
     wb: Workbook = openpyxl.load_workbook(caminho, data_only=True)
 
+    # Detectar formato combinado: primeira sheet tem "Antiguidade" e colunas de área
+    primeira_sheet = wb.worksheets[0] if wb.worksheets else None
+    if primeira_sheet and _is_formato_combinado(primeira_sheet):
+        _ler_formato_combinado(primeira_sheet, result)
+        return result
+
+    # Formato multi-sheet tradicional
     _ler_procuradores(wb, result)
     _ler_areas(wb, result)
     _ler_preferencias(wb, result)
     _ler_nomeacoes(wb, result)
 
     return result
+
+
+def _is_formato_combinado(ws) -> bool:
+    """Detecta se a sheet tem o cabeçalho do formato combinado."""
+    header = [str(c.value or "").strip().upper() for c in next(ws.iter_rows(min_row=1, max_row=1))]
+    return "ANTIGUIDADE" in header and "NOME" in header
+
+
+def _ler_formato_combinado(ws, result: ImportResult) -> None:
+    """
+    Formato único: Antiguidade | Nome | LotacaoAtual | Status(opcional) | PG-03 | PG-04 | ...
+    Colunas com código de área (ex: PG-03, 1PR-NIT) são tratadas como preferências.
+    """
+    rows = list(ws.iter_rows(values_only=True))
+    if len(rows) < 2:
+        result.erros.append("Planilha vazia ou sem dados")
+        return
+
+    header = [str(c or "").strip() for c in rows[0]]
+    header_upper = [h.upper() for h in header]
+
+    # Localizar colunas fixas
+    try:
+        col_antig = header_upper.index("ANTIGUIDADE")
+    except ValueError:
+        result.erros.append("Coluna 'Antiguidade' não encontrada")
+        return
+    try:
+        col_nome = header_upper.index("NOME")
+    except ValueError:
+        result.erros.append("Coluna 'Nome' não encontrada")
+        return
+
+    col_lotacao = next((i for i, h in enumerate(header_upper) if "LOTA" in h), None)
+    col_status  = next((i for i, h in enumerate(header_upper) if h == "STATUS"), None)
+
+    # Colunas de preferência = cabeçalhos que parecem código de área
+    import re
+    _area_re = re.compile(r'^\d*[A-Z]{1,4}-?[A-Z0-9\-]+$', re.IGNORECASE)
+    pref_cols: List[tuple[int, str]] = []
+    for i, h in enumerate(header):
+        if i in (col_antig, col_nome, col_lotacao, col_status):
+            continue
+        if h and _area_re.match(h.strip()):
+            pref_cols.append((i, h.strip()))
+
+    for linha_idx, row in enumerate(rows[1:], start=2):
+        antig_val = row[col_antig]
+        nome_val  = row[col_nome]
+        if antig_val is None or nome_val is None:
+            continue
+        try:
+            antig = int(antig_val)
+        except (ValueError, TypeError):
+            result.erros.append(f"Linha {linha_idx}: antiguidade inválida '{antig_val}'")
+            continue
+
+        nome = str(nome_val).strip()
+        if not nome:
+            continue
+
+        lotacao = str(row[col_lotacao]).strip() if col_lotacao is not None and row[col_lotacao] else None
+        status_raw = str(row[col_status]).strip().upper() if col_status is not None and row[col_status] else "PENDENTE"
+        status = status_raw if status_raw in STATUS_VALIDOS else "PENDENTE"
+        ativo = status not in ("EM_LICENCA", "VACANCIA")
+
+        result.procuradores.append(ProcuradorImport(
+            nome=nome, antiguidade=antig, status=status,
+            lotacao_atual_codigo=lotacao or None, ativo=ativo,
+        ))
+
+        # Preferências nas colunas de área
+        for col_i, area_cod in pref_cols:
+            val = row[col_i] if col_i < len(row) else None
+            if val is None:
+                continue
+            try:
+                ordem = int(val)
+                if ordem > 0:
+                    result.preferencias.append(PreferenciaImport(
+                        antiguidade=antig, area_codigo=area_cod, ordem=ordem
+                    ))
+            except (ValueError, TypeError):
+                pass
 
 
 def _ler_procuradores(wb: Workbook, result: ImportResult) -> None:

@@ -1,12 +1,14 @@
-import { Fragment, useState } from 'react'
-import { Plus, Eye } from 'lucide-react'
+import { Fragment, useRef, useState } from 'react'
+import { Plus, Eye, Upload, FileSpreadsheet, CheckCircle, AlertTriangle } from 'lucide-react'
 import { useProcuradores, useCreateProcurador, useProcurador } from '../api/procuradores'
 import { useAreas } from '../api/areas'
 import { useVagas } from '../api/vagas'
 import { useCicloAtual } from '../api/ciclos'
+import { useQueryClient } from '@tanstack/react-query'
 import Badge from '../components/Badge'
 import Modal from '../components/Modal'
 import Spinner from '../components/Spinner'
+import client from '../api/client'
 import type { Procurador, ProcuradorCreate, StatusProcurador } from '../types'
 import { STATUS_PROC_COLOR } from '../types'
 
@@ -46,11 +48,127 @@ function situacaoAtual(
   return `Movimentação → ${vaga.area_codigo}`
 }
 
+// ── Modal de Importação ───────────────────────────────────────────────────────
+
+function ModalImportacao({ cicloId, onClose }: { cicloId: string; onClose: () => void }) {
+  const qc = useQueryClient()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [file, setFile] = useState<File | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<Record<string, unknown> | null>(null)
+  const [erro, setErro] = useState('')
+
+  async function handleUpload() {
+    if (!file) return
+    setLoading(true)
+    setErro('')
+    setResult(null)
+    try {
+      const form = new FormData()
+      form.append('arquivo', file)
+      const res = await client.post(`/importacao/planilha?ciclo_id=${cicloId}`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      setResult(res.data)
+      qc.invalidateQueries({ queryKey: ['procuradores'] })
+      qc.invalidateQueries({ queryKey: ['vagas'] })
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setErro(msg ?? 'Erro ao importar')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal title="Importar planilha de procuradores" onClose={onClose}
+      footer={
+        result ? (
+          <button onClick={onClose} className="px-4 py-2 text-sm bg-[#005A92] text-white rounded">Fechar</button>
+        ) : (
+          <>
+            <button onClick={onClose} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">Cancelar</button>
+            <button onClick={handleUpload} disabled={!file || loading}
+              className="px-4 py-2 text-sm bg-[#005A92] text-white rounded disabled:opacity-40">
+              {loading ? 'Importando...' : 'Importar'}
+            </button>
+          </>
+        )
+      }
+    >
+      {/* Formato */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-xs">
+        <p className="font-semibold text-blue-800 mb-1 flex items-center gap-1">
+          <FileSpreadsheet size={13} /> Formato aceito (.xlsx)
+        </p>
+        <p className="text-blue-700 mb-2">
+          Planilha com as colunas abaixo. Colunas com códigos de área (ex: PG-03) são tratadas como preferências — o valor é a ordem (1 = mais querida).
+        </p>
+        <div className="font-mono bg-white border rounded px-2 py-1 text-[10px] text-gray-600 overflow-x-auto whitespace-nowrap">
+          Antiguidade | Nome | LotacaoAtual | Status | PG-03 | PG-04 | 1PR-NIT | ...
+        </div>
+        <p className="text-blue-600 mt-2 text-[10px]">
+          Status: LOTADO · PENDENTE · EM_LICENCA · VACANCIA (padrão: PENDENTE)
+        </p>
+      </div>
+
+      {/* Upload */}
+      {!result && (
+        <div
+          onClick={() => fileRef.current?.click()}
+          className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-[#005A92] hover:bg-blue-50 transition-colors"
+        >
+          <Upload size={24} className="mx-auto text-gray-400 mb-2" />
+          {file ? (
+            <p className="text-sm font-medium text-[#005A92]">{file.name}</p>
+          ) : (
+            <p className="text-sm text-gray-500">Clique para selecionar o arquivo .xlsx</p>
+          )}
+          <input
+            ref={fileRef} type="file" accept=".xlsx" className="hidden"
+            onChange={e => setFile(e.target.files?.[0] ?? null)}
+          />
+        </div>
+      )}
+
+      {/* Resultado */}
+      {result && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm">
+          <p className="font-semibold text-green-800 flex items-center gap-2 mb-2">
+            <CheckCircle size={15} /> Importação concluída
+          </p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-green-700">
+            {Object.entries(result).filter(([k]) => k !== 'erros').map(([k, v]) => (
+              <div key={k} className="flex justify-between">
+                <span className="text-gray-500">{k.replace(/_/g, ' ')}</span>
+                <span className="font-semibold">{String(v)}</span>
+              </div>
+            ))}
+          </div>
+          {Array.isArray(result.erros) && result.erros.length > 0 && (
+            <div className="mt-3 text-xs text-amber-700 bg-amber-50 rounded p-2">
+              <p className="font-semibold flex items-center gap-1 mb-1">
+                <AlertTriangle size={12} /> Avisos
+              </p>
+              {(result.erros as string[]).map((e, i) => <p key={i}>{e}</p>)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {erro && <p className="text-red-600 text-sm mt-3">{erro}</p>}
+    </Modal>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function Procuradores() {
   const [filterStatus, setFilterStatus] = useState('')
   const [search, setSearch] = useState('')
   const [expanded, setExpanded] = useState<number | null>(null)
   const [modal, setModal] = useState(false)
+  const [modalImport, setModalImport] = useState(false)
   const [form, setForm] = useState<ProcuradorCreate>({ nome: '', antiguidade: 1 })
   const [error, setError] = useState('')
 
@@ -99,6 +217,11 @@ export default function Procuradores() {
             <option value="EM_LICENCA">Em licença</option>
             <option value="VACANCIA">Vacância</option>
           </select>
+          <button onClick={() => setModalImport(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm border"
+            style={{ borderColor: '#005A92', color: '#005A92' }}>
+            <Upload size={15} /> Importar planilha
+          </button>
           <button onClick={() => { setForm({ nome: '', antiguidade: 1 }); setError(''); setModal(true) }}
             className="flex items-center gap-2 text-white px-4 py-2 rounded-lg text-sm"
             style={{ backgroundColor: '#005A92' }}>
@@ -207,6 +330,16 @@ export default function Procuradores() {
                 className="w-full border rounded px-2 py-1.5 text-sm" />
             </div>
           </div>
+        </Modal>
+      )}
+
+      {modalImport && ciclo && (
+        <ModalImportacao cicloId={ciclo.id} onClose={() => setModalImport(false)} />
+      )}
+      {modalImport && !ciclo && (
+        <Modal title="Importar planilha" onClose={() => setModalImport(false)}
+          footer={<button onClick={() => setModalImport(false)} className="px-4 py-2 text-sm border rounded">Fechar</button>}>
+          <p className="text-amber-600 text-sm">Crie um ciclo primeiro em <strong>Encerrar Ciclo</strong> antes de importar.</p>
         </Modal>
       )}
     </div>
