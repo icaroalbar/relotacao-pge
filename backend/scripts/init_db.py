@@ -259,11 +259,18 @@ def _seed(db: Session) -> None:
     procs_db = db.query(Procurador).options(selectinload(Procurador.preferencias)).all()
     vagas_acervo = [v for v in all_vagas if v.tipo == "ACERVO" and v.ocupante_id is None]
 
+    # Excluir procuradores já alocados em vagas manuais (PG/Nomeação/Escolha/Designação)
+    ja_alocados = {
+        v.ocupante_id for v in all_vagas
+        if v.tipo in ("PG", "NOMEACAO", "ESCOLHA", "DESIGNACAO") and v.ocupante_id is not None
+    }
+
     proc_dtos = [
         ProcuradorDTO(
             id=p.id, antiguidade=p.antiguidade, ativo=p.ativo,
             preferencias=[PrefDTO(area_codigo=pr.area_codigo, ordem=pr.ordem) for pr in p.preferencias]
         ) for p in procs_db
+        if p.id not in ja_alocados
     ]
     vaga_dtos = [VagaDTO(id=v.id, area_codigo=v.area_codigo, numero=v.numero) for v in vagas_acervo]
     vaga_map = {v.id: v for v in vagas_acervo}

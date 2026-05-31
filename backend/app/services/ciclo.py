@@ -77,6 +77,18 @@ def alocar_acervo_db(ciclo_id: str, db: Session) -> ResultadoAlocacao:
 
     db.flush()
 
+    # Procuradores já alocados em vagas não-acervo (vermelho, verde, amarelo, cinza)
+    # — excluídos da alocação automática de acervo
+    ja_alocados: set[int] = {
+        v.ocupante_id
+        for v in db.query(Vaga).filter(
+            Vaga.ciclo_id == ciclo_id,
+            Vaga.tipo.in_(["PG", "NOMEACAO", "ESCOLHA", "DESIGNACAO"]),
+            Vaga.ocupante_id.isnot(None),
+        ).all()
+        if v.ocupante_id is not None
+    }
+
     # Carrega procuradores com preferências
     procuradores_db = (
         db.query(Procurador)
@@ -91,7 +103,7 @@ def alocar_acervo_db(ciclo_id: str, db: Session) -> ResultadoAlocacao:
         .all()
     )
 
-    # Converte para DTOs
+    # Converte para DTOs — exclui quem já está em outra vaga do ciclo
     proc_dtos = [
         ProcuradorDTO(
             id=p.id,
@@ -103,6 +115,7 @@ def alocar_acervo_db(ciclo_id: str, db: Session) -> ResultadoAlocacao:
             ],
         )
         for p in procuradores_db
+        if p.id not in ja_alocados   # ← exclusão da unicidade
     ]
 
     vaga_dtos = [
