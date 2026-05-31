@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.ciclo import Ciclo
 from app.schemas.ciclo import CicloCreate, CicloOut
+from app.services.ciclo import alocar_acervo_db, encerrar_ciclo
 
 router = APIRouter()
 
@@ -50,4 +51,35 @@ def cancelar_ciclo(id: str, db: Session = Depends(get_db)):
     ciclo.encerramento = date.today()
     db.commit()
     db.refresh(ciclo)
+    return ciclo
+
+
+@router.post("/{id}/alocar-acervo")
+def alocar_acervo_endpoint(id: str, db: Session = Depends(get_db)):
+    """
+    Executa R2 (Serial Dictatorship) sobre as vagas ACERVO do ciclo.
+    Idempotente: limpa alocações automáticas anteriores antes de rodar.
+    """
+    try:
+        resultado = alocar_acervo_db(id, db)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {
+        "alocados": resultado.alocados,
+        "sem_vaga": resultado.sem_vaga,
+        "vagas_preenchidas": resultado.vagas_preenchidas,
+    }
+
+
+@router.post("/{id}/encerrar", response_model=CicloOut)
+def encerrar_ciclo_endpoint(id: str, db: Session = Depends(get_db)):
+    """
+    R7: encerra ciclo EM_CURSO.
+    Gera snapshot JSONB, fecha lotações abertas, cria histórico e calcula métricas.
+    """
+    try:
+        encerrar_ciclo(id, db)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    ciclo = db.get(Ciclo, id)
     return ciclo
