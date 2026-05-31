@@ -29,7 +29,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* Logo */}
         <div className="px-5 py-5 border-b border-white/10">
           <p className="text-white/60 text-xs font-medium tracking-widest uppercase mb-0.5">Sistema de</p>
-          <h1 className="font-serif font-bold text-xl leading-tight" style={{ color: '#BB9B32' }}>
+          <h1 className="font-sans font-bold text-xl leading-tight text-white">
             Relotação
           </h1>
           <p className="text-white/50 text-xs mt-0.5">PGE-RJ</p>
