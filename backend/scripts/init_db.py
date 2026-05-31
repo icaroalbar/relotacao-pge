@@ -265,7 +265,7 @@ def _seed(db: Session) -> None:
             preferencias=[PrefDTO(area_codigo=pr.area_codigo, ordem=pr.ordem) for pr in p.preferencias]
         ) for p in procs_db
     ]
-    vaga_dtos = [VagaDTO(id=v.id, area_codigo=v.area_codigo) for v in vagas_acervo]
+    vaga_dtos = [VagaDTO(id=v.id, area_codigo=v.area_codigo, numero=v.numero) for v in vagas_acervo]
     vaga_map = {v.id: v for v in vagas_acervo}
 
     resultado = alocar_acervo(proc_dtos, vaga_dtos, verificar_budget=False)

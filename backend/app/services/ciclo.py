@@ -106,7 +106,7 @@ def alocar_acervo_db(ciclo_id: str, db: Session) -> ResultadoAlocacao:
     ]
 
     vaga_dtos = [
-        VagaDTO(id=v.id, area_codigo=v.area_codigo, ocupante_id=v.ocupante_id)
+        VagaDTO(id=v.id, area_codigo=v.area_codigo, numero=v.numero, ocupante_id=v.ocupante_id)
         for v in vagas_db
     ]
 

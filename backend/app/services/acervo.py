@@ -37,6 +37,7 @@ class ProcuradorDTO:
 class VagaDTO:
     id: int
     area_codigo: str
+    numero: int = 0          # posição na área — usada para ordenar o pool
     ocupante_id: Optional[int] = None
     origem: str = "AUTOMATICA"
 
@@ -77,11 +78,14 @@ def alocar_acervo(
     if verificar_budget:
         verificar_orcamento(vagas, procuradores)
 
-    # pool indexado por area_codigo para lookup O(1)
+    # pool indexado por area_codigo, ordenado por numero crescente
+    # → cada procurador sempre ocupa o primeiro quadradinho disponível da área
     pool: dict[str, list[VagaDTO]] = {}
     for v in vagas:
         if v.ocupante_id is None:
             pool.setdefault(v.area_codigo, []).append(v)
+    for lista in pool.values():
+        lista.sort(key=lambda v: v.numero)
 
     alocacoes: dict[int, int] = {}
     sem_vaga: list[int] = []
