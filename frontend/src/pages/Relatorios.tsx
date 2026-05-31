@@ -42,6 +42,12 @@ export default function Relatorios() {
                   <RelBtn label="Lista de lotações (Excel)" href={`/api/relatorios/${c.id}/lotacoes.xlsx`} />
                   <RelBtn label="Ato administrativo (PDF)" href={`/api/relatorios/${c.id}/ato.pdf`} />
                 </div>
+                <p className="text-xs font-semibold text-gray-500 mt-4 mb-2">Relatórios de encerramento</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <RelBtn label="Movimentações (Excel)" href={`/api/relatorios/${c.id}/movimentacoes.xlsx`} />
+                  <RelBtn label="Decisões manuais (Excel)" href={`/api/relatorios/${c.id}/decisoes-manuais.xlsx`} />
+                  <RelBtn label="Estatísticas (Excel)" href={`/api/relatorios/${c.id}/estatisticas.xlsx`} />
+                </div>
               </div>
             ))}
           </div>

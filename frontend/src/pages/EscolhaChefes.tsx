@@ -4,7 +4,6 @@ import { useVagas, useUpdateVaga } from '../api/vagas'
 import { useProcuradores } from '../api/procuradores'
 import { useCicloAtual } from '../api/ciclos'
 import Spinner from '../components/Spinner'
-import { useState } from 'react'
 import type { Vaga } from '../types'
 
 function VagaRow({ vaga, procs, onSave }: {

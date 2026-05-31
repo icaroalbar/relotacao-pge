@@ -12,6 +12,9 @@ from app.services.relatorios import (
     gerar_areas_xlsx,
     gerar_mapa_pdf,
     gerar_ato_pdf,
+    gerar_movimentacoes_xlsx,
+    gerar_decisoes_manuais_xlsx,
+    gerar_estatisticas_xlsx,
 )
 
 router = APIRouter()
@@ -64,6 +67,33 @@ def ato_pdf(ciclo_id: str, db: Session = Depends(get_db)):
     except ValueError as e:
         raise HTTPException(404, str(e))
     return _stream(buf, _PDF, f"ato_{ciclo_id}.pdf")
+
+
+@router.get("/{ciclo_id}/movimentacoes.xlsx")
+def movimentacoes_xlsx(ciclo_id: str, db: Session = Depends(get_db)):
+    try:
+        buf = gerar_movimentacoes_xlsx(ciclo_id, db)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    return _stream(buf, _XLSX, f"movimentacoes_{ciclo_id}.xlsx")
+
+
+@router.get("/{ciclo_id}/decisoes-manuais.xlsx")
+def decisoes_manuais_xlsx(ciclo_id: str, db: Session = Depends(get_db)):
+    try:
+        buf = gerar_decisoes_manuais_xlsx(ciclo_id, db)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    return _stream(buf, _XLSX, f"decisoes_manuais_{ciclo_id}.xlsx")
+
+
+@router.get("/{ciclo_id}/estatisticas.xlsx")
+def estatisticas_xlsx(ciclo_id: str, db: Session = Depends(get_db)):
+    try:
+        buf = gerar_estatisticas_xlsx(ciclo_id, db)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    return _stream(buf, _XLSX, f"estatisticas_{ciclo_id}.xlsx")
 
 
 # ── gerais ────────────────────────────────────────────────────────────────────

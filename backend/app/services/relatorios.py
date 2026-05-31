@@ -8,6 +8,7 @@ import io
 from datetime import date
 from typing import Dict, List, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.area import Area
@@ -30,6 +31,42 @@ _TIPO_LABEL: Dict[str, str] = {
     "PG": "PG", "NOMEACAO": "Nomeação", "ESCOLHA": "Escolha",
     "DESIGNACAO": "Designação", "ACERVO": "Acervo",
 }
+
+_MOTIVO_LABEL: Dict[str, str] = {
+    "POSSE_INICIAL": "Posse Inicial",
+    "NOMEACAO": "Nomeação",
+    "ESCOLHA_CHEFE": "Escolha de Chefe",
+    "DESIGNACAO_PG": "Designação PG",
+    "ACERVO": "Acervo",
+    "PERMANENCIA": "Permanência",
+    "SUBSTITUICAO_MANUAL": "Substituição Manual",
+}
+
+
+def _get_prev_areas(proc_ids: List[int], ciclo_id: str, db: Session) -> Dict[int, str]:
+    """Retorna {proc_id: area_codigo} com a lotação mais recente ANTES do ciclo atual."""
+    if not proc_ids:
+        return {}
+    prev_subq = (
+        db.query(
+            Lotacao.procurador_id,
+            func.max(Lotacao.data_entrada).label("max_entrada"),
+        )
+        .filter(Lotacao.procurador_id.in_(proc_ids), Lotacao.ciclo_id != ciclo_id)
+        .group_by(Lotacao.procurador_id)
+        .subquery()
+    )
+    prev_lots = (
+        db.query(Lotacao)
+        .join(
+            prev_subq,
+            (Lotacao.procurador_id == prev_subq.c.procurador_id)
+            & (Lotacao.data_entrada == prev_subq.c.max_entrada),
+        )
+        .filter(Lotacao.ciclo_id != ciclo_id)
+        .all()
+    )
+    return {lot.procurador_id: lot.area_codigo for lot in prev_lots}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -332,6 +369,295 @@ def gerar_mapa_pdf(ciclo_id: str, db: Session) -> io.BytesIO:
         story.append(Spacer(1, 0.3*cm))
 
     doc.build(story)
+    buf.seek(0)
+    return buf
+
+
+def gerar_movimentacoes_xlsx(ciclo_id: str, db: Session) -> io.BytesIO:
+    import openpyxl
+    PatternFill, Font, Alignment, Border, Side = _wb_styles()
+
+    ciclo = db.get(Ciclo, ciclo_id)
+    if not ciclo:
+        raise ValueError(f"Ciclo '{ciclo_id}' não encontrado")
+
+    new_lots = (
+        db.query(Lotacao)
+        .options(selectinload(Lotacao.procurador))
+        .filter(Lotacao.ciclo_id == ciclo_id)
+        .order_by(Lotacao.area_codigo)
+        .all()
+    )
+
+    proc_ids = [lot.procurador_id for lot in new_lots]
+    prev_area_map = _get_prev_areas(proc_ids, ciclo_id, db)
+    areas = {a.codigo: a.nome for a in db.query(Area).all()}
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Movimentações"
+
+    thin = Border(left=Side(style="thin"), right=Side(style="thin"),
+                  top=Side(style="thin"), bottom=Side(style="thin"))
+
+    headers = ["Procurador", "Antiguidade", "Área Anterior", "Nome da Área Anterior",
+               "Área Atual", "Nome da Área Atual", "Motivo", "Status"]
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = Font(bold=True, color="FFFFFFFF")
+        cell.fill = PatternFill("solid", fgColor="FF1E3A5F")
+        cell.border = thin
+
+    rows = []
+    for lot in new_lots:
+        proc = lot.procurador
+        old_area = prev_area_map.get(lot.procurador_id)
+        new_area = lot.area_codigo
+        moved = old_area is None or old_area != new_area
+        rows.append((
+            proc.nome if proc else "",
+            proc.antiguidade if proc else "",
+            old_area or "—",
+            areas.get(old_area, "—") if old_area else "—",
+            new_area,
+            areas.get(new_area, ""),
+            _MOTIVO_LABEL.get(lot.motivo, lot.motivo),
+            "Mudança" if moved else "Permanência",
+            moved,
+        ))
+
+    rows.sort(key=lambda x: (not x[8], x[0]))
+
+    fill_mud = PatternFill("solid", fgColor="FFFECACA")
+    fill_per = PatternFill("solid", fgColor="FFBBF7D0")
+
+    for row_idx, r in enumerate(rows, 2):
+        fill = fill_mud if r[8] else fill_per
+        for col, val in enumerate(r[:8], 1):
+            cell = ws.cell(row=row_idx, column=col, value=val)
+            cell.fill = fill
+            cell.border = thin
+
+    for col in ws.columns:
+        max_len = max((len(str(c.value or "")) for c in col), default=8)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 40)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def gerar_decisoes_manuais_xlsx(ciclo_id: str, db: Session) -> io.BytesIO:
+    import openpyxl
+    PatternFill, Font, Alignment, Border, Side = _wb_styles()
+
+    ciclo = db.get(Ciclo, ciclo_id)
+    if not ciclo:
+        raise ValueError(f"Ciclo '{ciclo_id}' não encontrado")
+
+    procs = {p.id: p for p in db.query(Procurador).all()}
+    areas = {a.codigo: a.nome for a in db.query(Area).all()}
+
+    def _vagas(tipo: str, origem: Optional[str] = None):
+        q = db.query(Vaga).filter(Vaga.ciclo_id == ciclo_id, Vaga.tipo == tipo)
+        if origem:
+            q = q.filter(Vaga.origem == origem)
+        return q.order_by(Vaga.area_codigo, Vaga.numero).all()
+
+    sheets_def = [
+        ("Nomeações", _vagas("NOMEACAO"), "Nomeações da Gestão"),
+        ("Escolhas de Chefes", _vagas("ESCOLHA"), "Escolhas dos Chefes"),
+        ("Acervo Manual", _vagas("ACERVO", "MANUAL"), "Acervo Inserido Manualmente"),
+    ]
+
+    thin = Border(left=Side(style="thin"), right=Side(style="thin"),
+                  top=Side(style="thin"), bottom=Side(style="thin"))
+    headers = ["Área", "Nome da Área", "Nº Vaga", "Cargo", "Procurador", "Antiguidade"]
+
+    wb = openpyxl.Workbook()
+    first = True
+    for sheet_title, vagas, tipo_label in sheets_def:
+        ws = wb.active if first else wb.create_sheet(sheet_title)
+        if first:
+            ws.title = sheet_title
+            first = False
+
+        ws.cell(row=1, column=1, value=f"{tipo_label} — Ciclo {ciclo_id}").font = Font(bold=True, size=12)
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=6)
+
+        for col, h in enumerate(headers, 1):
+            cell = ws.cell(row=2, column=col, value=h)
+            cell.font = Font(bold=True, color="FFFFFFFF")
+            cell.fill = PatternFill("solid", fgColor="FF1E3A5F")
+            cell.border = thin
+
+        for row_idx, v in enumerate(vagas, 3):
+            proc = procs.get(v.ocupante_id) if v.ocupante_id else None
+            values = [
+                v.area_codigo, areas.get(v.area_codigo, ""),
+                v.numero, v.cargo or "",
+                proc.nome if proc else "—",
+                proc.antiguidade if proc else "",
+            ]
+            fill = PatternFill("solid", fgColor=_VAGA_FILL.get(v.tipo, "FFFFFFFF"))
+            for col, val in enumerate(values, 1):
+                cell = ws.cell(row=row_idx, column=col, value=val)
+                cell.fill = fill
+                cell.border = thin
+
+        for col in ws.columns:
+            max_len = max((len(str(c.value or "")) for c in col), default=8)
+            ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 40)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def gerar_estatisticas_xlsx(ciclo_id: str, db: Session) -> io.BytesIO:
+    import openpyxl
+    PatternFill, Font, Alignment, Border, Side = _wb_styles()
+
+    ciclo = db.get(Ciclo, ciclo_id)
+    if not ciclo:
+        raise ValueError(f"Ciclo '{ciclo_id}' não encontrado")
+
+    areas_map = {a.codigo: a for a in db.query(Area).all()}
+
+    new_lots = (
+        db.query(Lotacao)
+        .options(selectinload(Lotacao.procurador))
+        .filter(Lotacao.ciclo_id == ciclo_id)
+        .all()
+    )
+
+    proc_ids = [lot.procurador_id for lot in new_lots]
+    prev_area_map = _get_prev_areas(proc_ids, ciclo_id, db)
+
+    total = len(new_lots)
+    movimentacoes = permanencias = 0
+    em_regional = manteve_regional = 0
+    em_esp = manteve_esp = 0
+
+    detail_rows = []
+    for lot in new_lots:
+        old_cod = prev_area_map.get(lot.procurador_id)
+        new_cod = lot.area_codigo
+        old_area = areas_map.get(old_cod) if old_cod else None
+        new_area = areas_map.get(new_cod)
+        moved = old_cod is None or old_cod != new_cod
+
+        if moved:
+            movimentacoes += 1
+        else:
+            permanencias += 1
+
+        if old_area and old_area.tipo == "REGIONAL":
+            em_regional += 1
+            if new_area and new_area.tipo == "REGIONAL":
+                manteve_regional += 1
+
+        if old_area and old_area.tipo == "ESPECIALIZADA":
+            em_esp += 1
+            if new_cod == old_cod:
+                manteve_esp += 1
+
+        proc = lot.procurador
+        detail_rows.append((
+            proc.nome if proc else "",
+            proc.antiguidade if proc else "",
+            old_cod or "—",
+            old_area.tipo if old_area else "—",
+            new_cod,
+            new_area.tipo if new_area else "—",
+            "Mudança" if moved else "Permanência",
+        ))
+
+    pct = lambda n, d: round(n / d * 100, 1) if d > 0 else 0.0
+
+    metrics = [
+        ("Taxa de 1ª preferência atendida (acervo)", pct(0, 1),
+         ciclo.pct_primeira_pref or 0.0, "% das alocações de acervo atenderam a 1ª preferência"),
+        ("Taxa de mudança geral", pct(movimentacoes, total),
+         f"{movimentacoes}/{total}", "Procuradores que mudaram de área"),
+        ("Taxa de permanência geral", pct(permanencias, total),
+         f"{permanencias}/{total}", "Procuradores que permaneceram na mesma área"),
+        ("Manutenção em regionais *", pct(manteve_regional, em_regional),
+         f"{manteve_regional}/{em_regional}", "Estavam em REGIONAL e continuaram em alguma REGIONAL"),
+        ("Manutenção na mesma especializada **", pct(manteve_esp, em_esp),
+         f"{manteve_esp}/{em_esp}", "Estavam em ESPECIALIZADA e permaneceram na mesma área"),
+    ]
+    # Corrige linha 1: usa o valor do ciclo diretamente
+    metrics[0] = (
+        metrics[0][0],
+        ciclo.pct_primeira_pref or 0.0,
+        f"—/{ciclo.total_vagas or '—'}",
+        metrics[0][3],
+    )
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Resumo"
+
+    thin = Border(left=Side(style="thin"), right=Side(style="thin"),
+                  top=Side(style="thin"), bottom=Side(style="thin"))
+
+    title_cell = ws.cell(row=1, column=1, value=f"Estatísticas — Ciclo {ciclo_id}")
+    title_cell.font = Font(bold=True, size=14)
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=4)
+
+    for col, h in enumerate(["Métrica", "Valor (%)", "Contagem", "Descrição"], 1):
+        cell = ws.cell(row=3, column=col, value=h)
+        cell.font = Font(bold=True, color="FFFFFFFF")
+        cell.fill = PatternFill("solid", fgColor="FF1E3A5F")
+        cell.border = thin
+
+    fills = [PatternFill("solid", fgColor="FFFFFFFF"), PatternFill("solid", fgColor="FFF9FAFB")]
+    for i, (label, valor, contagem, desc) in enumerate(metrics):
+        row_idx = i + 4
+        f = fills[i % 2]
+        for col, val in enumerate([label, f"{valor}%", contagem, desc], 1):
+            cell = ws.cell(row=row_idx, column=col, value=val)
+            cell.fill = f
+            cell.border = thin
+
+    note_row = len(metrics) + 5
+    ws.cell(row=note_row, column=1,
+            value="* Manutenção em regionais: estava em REGIONAL antes e ficou em qualquer REGIONAL após o ciclo.")
+    ws.cell(row=note_row + 1, column=1,
+            value="** Manutenção na mesma especializada: permaneceu exatamente na mesma área ESPECIALIZADA.")
+
+    for col in ws.columns:
+        max_len = max((len(str(c.value or "")) for c in col), default=8)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 55)
+
+    # Aba de detalhes por procurador
+    ws_det = wb.create_sheet("Detalhes")
+    det_headers = ["Procurador", "Antiguidade", "Área Anterior", "Tipo Anterior",
+                   "Área Atual", "Tipo Atual", "Status"]
+    for col, h in enumerate(det_headers, 1):
+        cell = ws_det.cell(row=1, column=col, value=h)
+        cell.font = Font(bold=True, color="FFFFFFFF")
+        cell.fill = PatternFill("solid", fgColor="FF1E3A5F")
+        cell.border = thin
+
+    fill_mud = PatternFill("solid", fgColor="FFFECACA")
+    fill_per = PatternFill("solid", fgColor="FFBBF7D0")
+    for row_idx, r in enumerate(sorted(detail_rows, key=lambda x: x[0]), 2):
+        fill = fill_mud if r[6] == "Mudança" else fill_per
+        for col, val in enumerate(r, 1):
+            cell = ws_det.cell(row=row_idx, column=col, value=val)
+            cell.fill = fill
+            cell.border = thin
+
+    for col in ws_det.columns:
+        max_len = max((len(str(c.value or "")) for c in col), default=8)
+        ws_det.column_dimensions[col[0].column_letter].width = min(max_len + 2, 40)
+
+    buf = io.BytesIO()
+    wb.save(buf)
     buf.seek(0)
     return buf
 
