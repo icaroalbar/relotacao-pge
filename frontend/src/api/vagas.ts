@@ -15,8 +15,9 @@ export const useUpdateVaga = () => {
     mutationFn: ({ id, data }: { id: number; data: VagaUpdate }) =>
       client.patch(`/vagas/${id}`, data).then(r => r.data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['vagas'] })
-      qc.invalidateQueries({ queryKey: ['procuradores'] })
+      // refetchQueries força refetch imediato de todos os observers ativos
+      qc.refetchQueries({ queryKey: ['vagas'], exact: false })
+      qc.refetchQueries({ queryKey: ['procuradores'], exact: false })
     },
   })
 }
