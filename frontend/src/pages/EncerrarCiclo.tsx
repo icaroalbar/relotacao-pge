@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { AlertTriangle, Play, Square, Plus } from 'lucide-react'
+import { AlertTriangle, Play, Square, Plus, CheckCircle } from 'lucide-react'
 import { useCicloAtual, useCreateCiclo, useAlocarAcervo, useEncerrarCiclo } from '../api/ciclos'
-import { useGerarVagas } from '../api/vagas'
+import { useGerarVagas, useVagas } from '../api/vagas'
 import { useProcuradores } from '../api/procuradores'
 import { useAreas } from '../api/areas'
 import Spinner from '../components/Spinner'
@@ -11,6 +11,7 @@ export default function EncerrarCiclo() {
   const { data: ciclo, isLoading } = useCicloAtual()
   const { data: procs } = useProcuradores()
   const { data: areas } = useAreas()
+  const { data: vagas } = useVagas(ciclo ? { ciclo_id: ciclo.id } : undefined)
 
   const createCiclo = useCreateCiclo()
   const gerarVagas = useGerarVagas()
@@ -28,7 +29,11 @@ export default function EncerrarCiclo() {
   const totalVagas = areas?.reduce((s, a) => s + a.total_vagas, 0) ?? 0
   const totalProcs = procs?.length ?? 0
   const saldo = totalProcs - totalVagas
-  const orcamentOk = saldo === 0
+
+  // Contagens para avisos
+  const vagasSemOcupante = (vagas ?? []).filter(v => v.ocupante_id === null).length
+  const procsNaoAlocados = (procs ?? []).filter(p => p.ativo && p.status === 'PENDENTE').length
+  const temAviso = vagasSemOcupante > 0 || procsNaoAlocados > 0
 
   async function handleCreateCiclo() {
     if (!novoCicloId.trim()) return
@@ -60,19 +65,24 @@ export default function EncerrarCiclo() {
     <div className="p-8 max-w-2xl">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Ciclo</h1>
 
-      {/* atenção */}
-      <div className={`mb-6 p-4 rounded-lg border ${orcamentOk ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+      {/* banner saldo */}
+      <div className={`mb-6 p-4 rounded-lg border ${
+        saldo === 0 ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'
+      }`}>
         <div className="flex items-center gap-2">
-          <AlertTriangle size={16} className={orcamentOk ? 'text-green-600' : 'text-red-500'} />
+          {saldo === 0
+            ? <CheckCircle size={16} className="text-green-600" />
+            : <AlertTriangle size={16} className="text-amber-500" />
+          }
           <span className="font-medium text-sm">
             Atenção: {totalProcs} procuradores / {totalVagas} vagas — saldo{' '}
-            <strong className={orcamentOk ? 'text-green-700' : 'text-red-700'}>
-              {saldo >= 0 ? `+${saldo}` : saldo}
+            <strong className={saldo === 0 ? 'text-green-700' : 'text-amber-700'}>
+              {saldo > 0 ? `+${saldo}` : saldo}
             </strong>
           </span>
         </div>
-        {saldo > 0 && <p className="text-xs text-red-600 mt-1">Sobram {saldo} procuradores sem vaga. Adicione vagas em Áreas & Vagas.</p>}
-        {saldo < 0 && <p className="text-xs text-red-600 mt-1">Sobram {Math.abs(saldo)} vagas sem procurador. Reduza vagas em Áreas & Vagas.</p>}
+        {saldo > 0 && <p className="text-xs text-amber-700 mt-1">Há {saldo} procuradores a mais que vagas.</p>}
+        {saldo < 0 && <p className="text-xs text-amber-700 mt-1">Há {Math.abs(saldo)} vagas a mais que procuradores.</p>}
       </div>
 
       {!ciclo ? (
@@ -99,7 +109,6 @@ export default function EncerrarCiclo() {
           </button>
         </div>
       ) : (
-        /* Ciclo ativo */
         <div className="space-y-4">
           <div className="bg-white border rounded-lg p-5">
             <div className="flex items-center justify-between mb-4">
@@ -117,11 +126,11 @@ export default function EncerrarCiclo() {
               <h3 className="font-medium text-sm mb-3 text-gray-700">Ordem de preenchimento das vagas</h3>
               <div className="space-y-2 text-xs">
                 {[
-                  { cor: '#A0A0A0', label: 'PG (cinza)', desc: 'Cargo único do Procurador-Geral — preencher manualmente' },
+                  { cor: '#A0A0A0', label: 'PG (cinza)',           desc: 'Cargo único — preencher manualmente no Mapa' },
                   { cor: '#BB9B32', label: 'Designação PG (amarelo)', desc: 'PG designa — preencher em Designações PG' },
-                  { cor: '#C0392B', label: 'Nomeação (vermelho)', desc: 'Livre nomeação da gestão — preencher em Nomeações' },
+                  { cor: '#C0392B', label: 'Nomeação (vermelho)',   desc: 'Livre nomeação da gestão — preencher em Nomeações' },
                   { cor: '#427942', label: 'Escolha dos Chefes (verde)', desc: 'Cada chefe indica — preencher em Escolha dos Chefes' },
-                  { cor: '#005A92', label: 'Acervo (azul)', desc: 'Sistema preenche automaticamente por antiguidade e preferência ↓' },
+                  { cor: '#005A92', label: 'Acervo (azul)',         desc: 'Sistema preenche automaticamente ↓' },
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-3">
                     <span className="inline-block w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: item.cor }} />
@@ -132,7 +141,7 @@ export default function EncerrarCiclo() {
               </div>
             </div>
 
-            {/* Passo 1: Alocar acervo */}
+            {/* Alocar acervo */}
             <div className="border rounded p-4 mb-3">
               <h3 className="font-medium text-sm mb-2">Executar alocação de acervo (vagas azuis)</h3>
               <p className="text-xs text-gray-500 mb-3">
@@ -155,29 +164,55 @@ export default function EncerrarCiclo() {
               )}
             </div>
 
-            {/* Passo 2: Encerrar */}
+            {/* Encerrar */}
             <div className="border rounded p-4">
-              <h3 className="font-medium text-sm mb-2">Passo 2 — Encerrar ciclo</h3>
+              <h3 className="font-medium text-sm mb-2">Encerrar ciclo</h3>
               <p className="text-xs text-gray-500 mb-3">
                 Congela snapshot, gera histórico de lotações e calcula métricas. Irreversível.
               </p>
+
               {!confirmando ? (
-                <button onClick={() => setConfirmando(true)} disabled={!orcamentOk}
-                  className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700 disabled:opacity-40">
+                <button onClick={() => setConfirmando(true)}
+                  className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700">
                   <Square size={14} /> Encerrar ciclo
                 </button>
               ) : (
-                <div className="bg-red-50 border border-red-200 rounded p-3">
-                  <p className="text-red-700 font-medium text-sm mb-3">
-                    Confirmar encerramento do ciclo <strong>{ciclo.id}</strong>?
-                    Esta ação não pode ser desfeita.
-                  </p>
+                <div className="bg-red-50 border border-red-200 rounded p-4 space-y-3">
+
+                  {/* Avisos contextuais */}
+                  {vagasSemOcupante > 0 && (
+                    <div className="flex items-start gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded p-3 text-sm">
+                      <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                      <span>
+                        Atenção: há <strong>{vagasSemOcupante}</strong> {vagasSemOcupante === 1 ? 'vaga sem procurador alocado' : 'vagas sem procuradores alocados'}.
+                        Encerrar mesmo assim?
+                      </span>
+                    </div>
+                  )}
+
+                  {procsNaoAlocados > 0 && (
+                    <div className="flex items-start gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded p-3 text-sm">
+                      <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                      <span>
+                        Atenção: há <strong>{procsNaoAlocados}</strong> {procsNaoAlocados === 1 ? 'procurador não alocado' : 'procuradores não alocados'}.
+                        Encerrar mesmo assim?
+                      </span>
+                    </div>
+                  )}
+
+                  {!temAviso && (
+                    <p className="text-red-700 font-medium text-sm">
+                      Confirmar encerramento do ciclo <strong>{ciclo.id}</strong>? Esta ação não pode ser desfeita.
+                    </p>
+                  )}
+
                   <div className="flex gap-2">
                     <button onClick={handleEncerrar} disabled={encerrar.isPending}
                       className="bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700 disabled:opacity-40">
                       {encerrar.isPending ? 'Encerrando...' : 'Confirmar encerramento'}
                     </button>
-                    <button onClick={() => setConfirmando(false)} className="border px-4 py-2 rounded text-sm hover:bg-gray-50">
+                    <button onClick={() => setConfirmando(false)}
+                      className="border px-4 py-2 rounded text-sm hover:bg-gray-50">
                       Cancelar
                     </button>
                   </div>
