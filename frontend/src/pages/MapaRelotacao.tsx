@@ -1,11 +1,14 @@
 import { useState } from 'react'
+import { Pencil, X, Plus } from 'lucide-react'
 import { useAreas } from '../api/areas'
 import { useVagas, useUpdateVaga } from '../api/vagas'
 import { useProcuradores } from '../api/procuradores'
 import { useCicloAtual } from '../api/ciclos'
 import Spinner from '../components/Spinner'
-import type { Vaga, TipoVaga } from '../types'
+import type { Vaga, TipoVaga, Procurador } from '../types'
 import { TIPO_VAGA_LABEL } from '../types'
+
+// ── cores ─────────────────────────────────────────────────────────────────────
 
 const TIPO_BORDER: Record<TipoVaga, string> = {
   PG:         '#A0A0A0',
@@ -16,7 +19,7 @@ const TIPO_BORDER: Record<TipoVaga, string> = {
 }
 
 const TIPO_BG: Record<TipoVaga, string> = {
-  PG:         '#F3F4F6',
+  PG:         '#F9FAFB',
   NOMEACAO:   '#FEF2F2',
   ESCOLHA:    '#F0FDF4',
   DESIGNACAO: '#FFFBEB',
@@ -31,59 +34,126 @@ const TIPO_TEXT: Record<TipoVaga, string> = {
   ACERVO:     '#005A92',
 }
 
-function VagaCard({ vaga, procMap, onEdit }: {
+const TIPO_BADGE_BG: Record<TipoVaga, string> = {
+  PG:         '#E5E7EB',
+  NOMEACAO:   '#FEE2E2',
+  ESCOLHA:    '#DCFCE7',
+  DESIGNACAO: '#FEF3C7',
+  ACERVO:     '#DBEAFE',
+}
+
+const ORDINAL = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª']
+
+// ── card ──────────────────────────────────────────────────────────────────────
+
+function VagaCard({ vaga, procById, onEdit, onClear }: {
   vaga: Vaga
-  procMap: Record<number, string>
+  procById: Record<number, Procurador>
   onEdit: (v: Vaga) => void
+  onClear: (v: Vaga) => void
 }) {
-  const isEditable = true
+  const proc = vaga.ocupante_id ? procById[vaga.ocupante_id] : null
   const isAcervo = vaga.tipo === 'ACERVO'
-  const nome = vaga.ocupante_id ? procMap[vaga.ocupante_id] : null
-  const firstName = nome?.split(' ').slice(0, 2).join(' ')
+  const isEmpty = !proc
+
+  // Número de preferência satisfeita (só acervo automático)
+  let prefInfo = ''
+  if (isAcervo && proc) {
+    if (vaga.origem === 'MANUAL') {
+      prefInfo = 'Substituição manual'
+    } else {
+      const pref = proc.preferencias.find(p => p.area_codigo === vaga.area_codigo)
+      if (pref) {
+        prefInfo = `Pref. ${ORDINAL[pref.ordem - 1] ?? `${pref.ordem}ª`}`
+      }
+    }
+  }
+
+  // Nome curto (2 palavras)
+  const nomeBreve = proc?.nome.split(' ').slice(0, 3).join(' ')
 
   return (
     <div
-      onClick={() => isEditable && onEdit(vaga)}
       style={{
         borderColor: TIPO_BORDER[vaga.tipo],
-        backgroundColor: TIPO_BG[vaga.tipo],
         borderWidth: 2,
-        borderStyle: 'solid',
-        cursor: isEditable ? 'pointer' : 'default',
+        borderStyle: isEmpty && isAcervo ? 'dashed' : 'solid',
+        backgroundColor: isEmpty ? '#FAFAFA' : TIPO_BG[vaga.tipo],
       }}
-      className={`rounded-lg p-2 flex flex-col items-center justify-center min-h-[90px] transition-shadow ${
-        isEditable ? 'hover:shadow-md' : ''
-      }`}
+      className="rounded-xl p-3 flex flex-col gap-1.5 min-h-[130px] relative"
     >
-      {/* Número */}
-      <span className="text-2xl font-bold leading-none" style={{ color: TIPO_TEXT[vaga.tipo] }}>
-        {vaga.numero}
-      </span>
-
-      {/* Cargo */}
-      {vaga.cargo && (
-        <span className="text-[10px] text-center leading-tight mt-1 px-1"
-          style={{ color: TIPO_TEXT[vaga.tipo] }}>
-          {vaga.cargo}
+      {/* Linha superior: número + badge tipo */}
+      <div className="flex items-start justify-between gap-1">
+        <span className="text-2xl font-bold leading-none" style={{ color: TIPO_TEXT[vaga.tipo] }}>
+          {vaga.numero}
         </span>
-      )}
-
-      {/* Ocupante */}
-      {nome ? (
-        <span className="text-[10px] font-medium text-gray-700 text-center leading-tight mt-1 px-1 truncate w-full text-center">
-          {firstName}
+        <span
+          className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded leading-tight text-right"
+          style={{ backgroundColor: TIPO_BADGE_BG[vaga.tipo], color: TIPO_TEXT[vaga.tipo] }}
+        >
+          {TIPO_VAGA_LABEL[vaga.tipo].replace(' ', '\n')}
         </span>
+      </div>
+
+      {proc ? (
+        <>
+          {/* Nome */}
+          <p className="text-xs font-bold text-gray-800 leading-tight">{nomeBreve}</p>
+
+          {/* Antiguidade */}
+          <span
+            className="inline-flex items-center self-start px-1.5 py-0.5 rounded text-[10px] font-semibold"
+            style={{ backgroundColor: TIPO_BADGE_BG[vaga.tipo], color: TIPO_TEXT[vaga.tipo] }}
+          >
+            Nº {proc.antiguidade}
+          </span>
+
+          {/* Cargo + info */}
+          <p className="text-[10px] text-gray-500 leading-tight mt-auto">
+            {vaga.cargo && <>{vaga.cargo} • </>}
+            {prefInfo || TIPO_VAGA_LABEL[vaga.tipo]}
+          </p>
+
+          {/* Ações (todos os tipos editáveis) */}
+          <div className="absolute bottom-2 right-2 flex gap-1">
+            <button
+              onClick={() => onEdit(vaga)}
+              className="p-1 rounded hover:bg-white/60 text-gray-400 hover:text-gray-700"
+              title="Editar"
+            >
+              <Pencil size={11} />
+            </button>
+            <button
+              onClick={() => onClear(vaga)}
+              className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"
+              title="Remover ocupante"
+            >
+              <X size={11} />
+            </button>
+          </div>
+        </>
       ) : (
-        <span className="text-[10px] text-gray-300 mt-1">livre</span>
-      )}
-
-      {/* Indicador manual (só acervo) */}
-      {vaga.origem === 'MANUAL' && isAcervo && (
-        <span className="text-[9px] mt-0.5" style={{ color: '#BB9B32' }}>● manual</span>
+        /* Vaga vazia */
+        <div className="flex flex-col items-center justify-center flex-1 gap-2">
+          <p className="text-[10px] text-gray-300 italic">vaga em aberto</p>
+          <button
+            onClick={() => onEdit(vaga)}
+            className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded border"
+            style={{
+              borderColor: TIPO_BORDER[vaga.tipo],
+              color: TIPO_TEXT[vaga.tipo],
+              backgroundColor: TIPO_BG[vaga.tipo],
+            }}
+          >
+            <Plus size={10} /> Atribuir
+          </button>
+        </div>
       )}
     </div>
   )
 }
+
+// ── page ──────────────────────────────────────────────────────────────────────
 
 export default function MapaRelotacao() {
   const { data: ciclo, isLoading: loadingCiclo } = useCicloAtual()
@@ -96,7 +166,11 @@ export default function MapaRelotacao() {
   const [selectedProc, setSelectedProc] = useState<string>('')
   const [filterArea, setFilterArea] = useState('')
 
-  const procMap: Record<number, string> = Object.fromEntries(procs?.map(p => [p.id, p.nome]) ?? [])
+  // índice procurador completo (com preferencias)
+  const procById: Record<number, Procurador> = Object.fromEntries(
+    (procs ?? []).map(p => [p.id, p])
+  )
+
   const vagasPorArea: Record<string, Vaga[]> = {}
   for (const v of vagas ?? []) {
     vagasPorArea[v.area_codigo] = [...(vagasPorArea[v.area_codigo] ?? []), v]
@@ -107,13 +181,22 @@ export default function MapaRelotacao() {
     (!filterArea || a.codigo === filterArea)
   )
 
-  async function handleSaveEdit() {
+  async function handleSave() {
     if (!editVaga) return
     await updateVaga.mutateAsync({
       id: editVaga.id,
       data: { ocupante_id: selectedProc ? Number(selectedProc) : null },
     })
     setEditVaga(null)
+  }
+
+  async function handleClear(vaga: Vaga) {
+    await updateVaga.mutateAsync({ id: vaga.id, data: { ocupante_id: null } })
+  }
+
+  function openEdit(vaga: Vaga) {
+    setEditVaga(vaga)
+    setSelectedProc(String(vaga.ocupante_id ?? ''))
   }
 
   if (loadingCiclo || loadingVagas) return <Spinner />
@@ -129,11 +212,12 @@ export default function MapaRelotacao() {
 
   return (
     <div className="p-8">
+      {/* Header */}
       <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Mapa de Relotação</h1>
           <p className="text-gray-500 text-sm mt-1">
-            Ciclo <strong className="text-pge-blue">{ciclo.id}</strong> — clique em vaga azul para editar
+            Ciclo <strong className="text-pge-blue">{ciclo.id}</strong>
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -155,12 +239,18 @@ export default function MapaRelotacao() {
         </div>
       </div>
 
+      {/* Áreas */}
       <div className="space-y-6">
         {areasComVagas.map(area => {
-          const vagasArea = vagasPorArea[area.codigo] ?? []
+          const vagasArea = (vagasPorArea[area.codigo] ?? [])
+            .slice()
+            .sort((a, b) => {
+              const ord = ['PG','NOMEACAO','ESCOLHA','DESIGNACAO','ACERVO']
+              return ord.indexOf(a.tipo) - ord.indexOf(b.tipo) || a.numero - b.numero
+            })
+
           return (
-            <div key={area.codigo} className="bg-white border rounded-lg overflow-hidden">
-              {/* Header área */}
+            <div key={area.codigo} className="bg-white border rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b"
                 style={{ backgroundColor: '#EEF4FB' }}>
                 <div className="flex items-center gap-3">
@@ -174,29 +264,28 @@ export default function MapaRelotacao() {
                 <span className="text-xs font-semibold text-gray-500">{vagasArea.length} vagas</span>
               </div>
 
-              {/* Grid de vagas */}
-              <div className="p-3 grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
-                {vagasArea
-                  .sort((a, b) => {
-                    const ord = ['PG','NOMEACAO','ESCOLHA','DESIGNACAO','ACERVO']
-                    return ord.indexOf(a.tipo) - ord.indexOf(b.tipo) || a.numero - b.numero
-                  })
-                  .map(v => (
-                    <VagaCard key={v.id} vaga={v} procMap={procMap}
-                      onEdit={v => { setEditVaga(v); setSelectedProc(String(v.ocupante_id ?? '')) }} />
-                  ))}
+              <div className="p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
+                {vagasArea.map(v => (
+                  <VagaCard
+                    key={v.id}
+                    vaga={v}
+                    procById={procById}
+                    onEdit={openEdit}
+                    onClear={handleClear}
+                  />
+                ))}
               </div>
             </div>
           )
         })}
       </div>
 
-      {/* Modal edição vaga */}
+      {/* Modal */}
       {editVaga && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-lg shadow-xl w-96 mx-4 p-5">
+          <div className="bg-white rounded-xl shadow-xl w-96 mx-4 p-5">
             <div className="flex items-center gap-3 mb-4">
-              <span className="inline-block w-8 h-8 rounded-full text-center leading-8 text-white text-sm font-bold"
+              <span className="inline-flex items-center justify-center w-9 h-9 rounded-full text-white text-sm font-bold"
                 style={{ backgroundColor: TIPO_BORDER[editVaga.tipo] }}>
                 {editVaga.numero}
               </span>
@@ -209,19 +298,31 @@ export default function MapaRelotacao() {
               </div>
             </div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Procurador</label>
-            <select value={selectedProc} onChange={e => setSelectedProc(e.target.value)}
-              className="w-full border rounded px-2 py-1.5 text-sm mb-4">
+            <select
+              value={selectedProc}
+              onChange={e => setSelectedProc(e.target.value)}
+              className="w-full border rounded px-2 py-1.5 text-sm mb-4"
+            >
               <option value="">— Vaga livre —</option>
-              {procs?.filter(p => p.ativo).map(p => (
-                <option key={p.id} value={p.id}>[Nº {p.antiguidade}] {p.nome}</option>
-              ))}
+              {(procs ?? [])
+                .filter(p => p.ativo)
+                .sort((a, b) => a.antiguidade - b.antiguidade)
+                .map(p => (
+                  <option key={p.id} value={p.id}>
+                    [Nº {p.antiguidade}] {p.nome}
+                  </option>
+                ))}
             </select>
             <div className="flex justify-end gap-2">
               <button onClick={() => setEditVaga(null)}
-                className="px-4 py-2 text-sm border rounded hover:bg-gray-50">Cancelar</button>
-              <button onClick={handleSaveEdit}
+                className="px-4 py-2 text-sm border rounded hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button onClick={handleSave}
                 className="px-4 py-2 text-sm text-white rounded"
-                style={{ backgroundColor: '#005A92' }}>Salvar</button>
+                style={{ backgroundColor: '#005A92' }}>
+                Salvar
+              </button>
             </div>
           </div>
         </div>
