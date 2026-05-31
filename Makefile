@@ -10,7 +10,7 @@ DB_URL := postgresql://relotacao:relotacao@localhost:5432/relotacao
 
 .PHONY: help setup setup-backend setup-frontend \
         dev dev-backend dev-frontend dev-db \
-        migrate migrate-down test build clean
+        migrate migrate-down seed reset test build clean
 
 # ── default ──────────────────────────────────────────────────────────────────
 
@@ -22,6 +22,8 @@ help:
 	@printf "  \033[36mmake dev-backend\033[0m    DB + uvicorn local com hot reload (:8000)\n"
 	@printf "  \033[36mmake dev-frontend\033[0m   Vite dev server (:5173)\n"
 	@printf "  \033[36mmake migrate\033[0m        Aplica migrations Alembic\n"
+	@printf "  \033[36mmake seed\033[0m           Popula banco com dados fictícios PGE-RJ\n"
+	@printf "  \033[36mmake reset\033[0m          migrate + seed (após docker compose down -v)\n"
 	@printf "  \033[36mmake test\033[0m           pytest\n"
 	@printf "  \033[36mmake build\033[0m          Build produção do frontend\n"
 	@printf "  \033[36mmake clean\033[0m          Remove .venv e node_modules\n\n"
@@ -69,6 +71,18 @@ migrate:
 
 migrate-down:
 	cd backend && DATABASE_URL=$(DB_URL) $(ABS_PY) -m alembic downgrade -1
+
+# ── seed / reset ─────────────────────────────────────────────────────────────
+
+seed:
+	@echo "→ Rodando seed de dados fictícios..."
+	python backend/scripts/seed.py
+
+reset:
+	@echo "→ Aplicando migration..."
+	docker compose --profile app exec backend alembic upgrade head
+	@echo "→ Populando com dados fictícios..."
+	python backend/scripts/seed.py
 
 # ── test ─────────────────────────────────────────────────────────────────────
 
