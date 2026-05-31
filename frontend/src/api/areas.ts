@@ -12,7 +12,10 @@ export const useCreateArea = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: AreaCreate) => client.post('/areas', data).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['areas'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['areas'] })
+      qc.invalidateQueries({ queryKey: ['vagas'] })
+    },
   })
 }
 
@@ -21,7 +24,10 @@ export const useUpdateArea = () => {
   return useMutation({
     mutationFn: ({ codigo, data }: { codigo: string; data: AreaUpdate }) =>
       client.patch(`/areas/${codigo}`, data).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['areas'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['areas'] })
+      qc.invalidateQueries({ queryKey: ['vagas'] })
+    },
   })
 }
 

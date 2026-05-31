@@ -111,22 +111,43 @@ export default function EncerrarCiclo() {
               <Badge className="bg-green-100 text-green-700">{ciclo.status}</Badge>
             </div>
 
+            {/* Ordem de preenchimento */}
+            <div className="border rounded p-4 mb-3 bg-gray-50">
+              <h3 className="font-medium text-sm mb-3 text-gray-700">Ordem de preenchimento das vagas</h3>
+              <div className="space-y-2 text-xs">
+                {[
+                  { cor: '#A0A0A0', label: 'PG (cinza)', desc: 'Cargo único do Procurador-Geral — preencher manualmente' },
+                  { cor: '#BB9B32', label: 'Designação PG (amarelo)', desc: 'PG designa — preencher em Designações PG' },
+                  { cor: '#C0392B', label: 'Nomeação (vermelho)', desc: 'Livre nomeação da gestão — preencher em Nomeações' },
+                  { cor: '#427942', label: 'Escolha dos Chefes (verde)', desc: 'Cada chefe indica — preencher em Escolha dos Chefes' },
+                  { cor: '#005A92', label: 'Acervo (azul)', desc: 'Sistema preenche automaticamente por antiguidade e preferência ↓' },
+                ].map(item => (
+                  <div key={item.label} className="flex items-center gap-3">
+                    <span className="inline-block w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: item.cor }} />
+                    <span className="font-medium w-44 shrink-0">{item.label}</span>
+                    <span className="text-gray-400">{item.desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Passo 1: Alocar acervo */}
             <div className="border rounded p-4 mb-3">
-              <h3 className="font-medium text-sm mb-2">Passo 1 — Executar alocação de acervo (R2)</h3>
+              <h3 className="font-medium text-sm mb-2">Executar alocação de acervo (vagas azuis)</h3>
               <p className="text-xs text-gray-500 mb-3">
-                Serial Dictatorship por antiguidade. Idempotente — pode rodar múltiplas vezes.
+                Percorre procuradores do mais antigo ao mais novo. Cada um ocupa a 1ª área preferida com vaga azul livre.
+                Idempotente — pode rodar quantas vezes quiser.
               </p>
               <button onClick={handleAlocar} disabled={alocar.isPending}
                 className="flex items-center gap-2 bg-[#005A92] text-white px-4 py-2 rounded text-sm hover:bg-[#004470] disabled:opacity-40">
-                <Play size={14} /> {alocar.isPending ? 'Alocando...' : 'Alocar acervo'}
+                <Play size={14} /> {alocar.isPending ? 'Alocando...' : 'Alocar acervo automaticamente'}
               </button>
               {alocResult && (
                 <div className="mt-3 text-sm">
-                  <p className="text-green-700">✓ {alocResult.alocados} procuradores alocados</p>
+                  <p className="text-green-700">✓ {alocResult.alocados} procuradores alocados nas vagas azuis</p>
                   {alocResult.sem_vaga.length > 0 && (
                     <p className="text-amber-600 mt-1">
-                      ⚠ {alocResult.sem_vaga.length} sem vaga disponível
+                      ⚠ {alocResult.sem_vaga.length} sem vaga disponível — alocar manualmente no Mapa
                     </p>
                   )}
                 </div>

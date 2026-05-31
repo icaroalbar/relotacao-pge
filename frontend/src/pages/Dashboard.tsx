@@ -1,4 +1,4 @@
-import { CheckCircle, Circle, Clock, AlertTriangle, Upload, UserCheck, Play } from 'lucide-react'
+import { CheckCircle, Clock, AlertTriangle, UserCheck, Play, Briefcase } from 'lucide-react'
 import { useCicloAtual } from '../api/ciclos'
 import { useProcuradores } from '../api/procuradores'
 import { useAreas } from '../api/areas'
@@ -9,10 +9,10 @@ import { useNavigate } from 'react-router-dom'
 
 const ETAPAS = [
   { label: 'Configurar Áreas e Vagas' },
-  { label: 'Nomeações da Gestão' },
-  { label: 'Importar Preferências' },
+  { label: 'PG · Designações · Nomeações' },
   { label: 'Escolha dos Chefes' },
-  { label: 'Processar Alocação' },
+  { label: 'Preferências dos Procuradores' },
+  { label: 'Acervo Automático' },
 ]
 
 function Stepper({ etapaAtual }: { etapaAtual: number }) {
@@ -112,22 +112,21 @@ function ComposicaoVagas({ areas }: { areas: { vagas_nomeacao: number; vagas_esc
 
 // ── Próximas ações ────────────────────────────────────────────────────────────
 
-function ProximasAcoes({ areas, procs, cicloId }: {
-  areas: { vagas_escolha: number }[]
-  procs: { preferencias: unknown[] }[]
+function ProximasAcoes({ areas, cicloId }: {
+  areas: { vagas_escolha: number; vagas_nomeacao: number; vagas_designacao: number }[]
   cicloId: string
 }) {
   const navigate = useNavigate()
-  const semPrefs = procs.filter(p => (p.preferencias as unknown[]).length === 0).length
+  const nomPendentes = areas.reduce((s, a) => s + a.vagas_nomeacao + a.vagas_designacao, 0)
   const escolhasPendentes = areas.reduce((s, a) => s + a.vagas_escolha, 0)
 
   const acoes = [
-    semPrefs > 0 && {
-      icon: Upload,
-      label: `${semPrefs} procuradores sem preferências`,
-      sub: 'Importar planilha de preferências',
+    nomPendentes > 0 && {
+      icon: Briefcase,
+      label: `Preencher nomeações e designações`,
+      sub: `${nomPendentes} vagas vermelhas/amarelas aguardam gestão`,
       to: '/nomeacoes',
-      btn: 'Importar',
+      btn: 'Preencher',
     },
     escolhasPendentes > 0 && {
       icon: UserCheck,
@@ -138,10 +137,10 @@ function ProximasAcoes({ areas, procs, cicloId }: {
     },
     {
       icon: Play,
-      label: 'Pré-simulação disponível',
-      sub: 'Rodar com dados parciais para projetar resultado',
+      label: 'Executar alocação de acervo',
+      sub: 'Preencher vagas azuis por antiguidade e preferência',
       to: '/encerrar',
-      btn: 'Simular',
+      btn: 'Alocar',
     },
   ].filter(Boolean) as { icon: typeof Play; label: string; sub: string; to: string; btn: string }[]
 
@@ -184,17 +183,17 @@ export default function Dashboard() {
   const ativos = procs?.filter(p => p.ativo).length ?? 0
   const afastados = totalProcs - ativos
   const totalVagas = areas?.reduce((s, a) => s + a.total_vagas, 0) ?? 0
-  const saldo = totalProcs - totalVagas
-  const semPrefs = procs?.filter(p => p.preferencias.length === 0).length ?? 0
-  const formularios = totalProcs - semPrefs
+  const lotados = procs?.filter(p => p.status === 'LOTADO').length ?? 0
 
-  // Etapa atual
+  // Etapa atual (baseada no que já foi preenchido)
+  const vagasNom = areas?.reduce((s, a) => s + a.vagas_nomeacao + a.vagas_designacao + a.vagas_pg, 0) ?? 0
+  const vagasEsc = areas?.reduce((s, a) => s + a.vagas_escolha, 0) ?? 0
   const etapaAtual =
-    !areas?.length ? 0 :
-    !ciclo ? 0 :
-    formularios === 0 ? 2 :
-    formularios < totalProcs ? 2 :
-    3
+    !areas?.length || !ciclo ? 0 :
+    vagasNom === 0 ? 1 :
+    vagasEsc === 0 ? 2 :
+    lotados < vagasNom + vagasEsc ? 3 :
+    4
 
   return (
     <div className="p-8 max-w-6xl">
@@ -224,28 +223,21 @@ export default function Dashboard() {
       {/* Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Procuradores" value={totalProcs}
-          sub={afastados > 0 ? `Ativos no ciclo · ${afastados} afastados` : `${ativos} ativos no ciclo`} />
+          sub={afastados > 0 ? `${ativos} ativos · ${afastados} afastados` : `${ativos} ativos no ciclo`} />
         <StatCard label="Áreas no Ciclo" value={areas?.length ?? 0}
           sub={`${areas?.filter(a => a.tipo === 'ESPECIALIZADA').length ?? 0} especializadas · ${areas?.filter(a => a.tipo === 'REGIONAL').length ?? 0} regionais`} />
-        <StatCard label="Formulários Respondidos" value={`${formularios}/${totalProcs}`}
-          sub={`${totalProcs > 0 ? Math.round(formularios / totalProcs * 100) : 0}% de adesão`}
+        <StatCard label="Total de Vagas" value={totalVagas}
+          sub={`${areas?.filter(a => a.tipo === 'GABINETE').length ?? 0} gabinete · ${areas?.filter(a => a.tipo === 'ESPECIALIZADA').length ?? 0} especializadas`} />
+        <StatCard label="Lotados no Ciclo" value={procs?.filter(p => p.status === 'LOTADO').length ?? 0}
+          sub={`${procs?.filter(p => p.status === 'PENDENTE').length ?? 0} pendentes · ${procs?.filter(p => !p.ativo).length ?? 0} inativos`}
           accent />
-        <div className={`bg-white border rounded-lg p-5 ${saldo < 0 ? 'border-red-300' : ''}`}>
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Saldo Orçamentário</p>
-          <p className={`text-3xl font-bold mt-1 ${saldo < 0 ? 'text-red-600' : 'text-pge-green'}`}>
-            {saldo >= 0 ? `+${saldo}` : saldo}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">
-            {saldo < 0 ? '⚠ Excedente — revisar vagas' : `${totalVagas} vagas configuradas`}
-          </p>
-        </div>
       </div>
 
       {/* Composição + Próximas ações */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {areas && areas.length > 0 && <ComposicaoVagas areas={areas} />}
-        {ciclo && procs && areas && (
-          <ProximasAcoes areas={areas} procs={procs} cicloId={ciclo.id} />
+        {ciclo && areas && (
+          <ProximasAcoes areas={areas} cicloId={ciclo.id} />
         )}
       </div>
 
