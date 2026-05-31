@@ -1,13 +1,17 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import areas, procuradores, vagas, ciclos, importacao, relatorios
 
+_raw = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:80")
+CORS_ORIGINS = [o.strip() for o in _raw.split(",") if o.strip()]
+
 app = FastAPI(title="Relotação PGE-RJ", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { Plus, ChevronDown, ChevronRight } from 'lucide-react'
 import { useProcuradores, useCreateProcurador, useProcurador } from '../api/procuradores'
 import { useAreas } from '../api/areas'
@@ -85,8 +85,8 @@ export default function Procuradores() {
           </thead>
           <tbody>
             {procs?.map(p => (
-              <>
-                <tr key={p.id}
+              <Fragment key={p.id}>
+                <tr
                   className="border-t hover:bg-gray-50 cursor-pointer"
                   onClick={() => setExpanded(expanded === p.id ? null : p.id)}>
                   <td className="px-4 py-2 font-mono text-xs text-gray-500 w-12">{p.antiguidade}</td>
@@ -110,7 +110,7 @@ export default function Procuradores() {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>
