@@ -1,4 +1,6 @@
 services:
+
+  # ── Banco de dados ──────────────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
     environment:
@@ -9,6 +11,53 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U relotacao"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Backend ─────────────────────────────────────────────────────────────────
+  backend:
+    build: ./backend
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - ./backend:/app          # hot reload em dev
+    environment:
+      DATABASE_URL: postgresql://relotacao:relotacao@db:5432/relotacao
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles: [app]
+
+  # ── Frontend (dev) ──────────────────────────────────────────────────────────
+  frontend-dev:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install --silent && npm run dev -- --host"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules      # volume anônimo evita sobrescrever node_modules local
+    environment:
+      VITE_API_BASE: http://localhost:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    profiles: [app]
+
+  # ── Frontend (prod) ─────────────────────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    profiles: [prod]
 
 volumes:
   postgres_data:
