@@ -7,6 +7,7 @@ import MapaRelotacao from './pages/MapaRelotacao'
 import Nomeacoes from './pages/Nomeacoes'
 import EscolhaChefes from './pages/EscolhaChefes'
 import Designacoes from './pages/Designacoes'
+import AlocarAcervo from './pages/AlocarAcervo'
 import EncerrarCiclo from './pages/EncerrarCiclo'
 import HistoricoCiclos from './pages/HistoricoCiclos'
 import Relatorios from './pages/Relatorios'
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="/nomeacoes" element={<Nomeacoes />} />
         <Route path="/escolhas" element={<EscolhaChefes />} />
         <Route path="/designacoes" element={<Designacoes />} />
+        <Route path="/alocar" element={<AlocarAcervo />} />
         <Route path="/encerrar" element={<EncerrarCiclo />} />
         <Route path="/historico" element={<HistoricoCiclos />} />
         <Route path="/relatorios" element={<Relatorios />} />

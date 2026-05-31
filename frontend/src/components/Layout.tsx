@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Building2, Users, Map, Briefcase,
-  UserCheck, Star, CheckSquare, History, FileText,
+  UserCheck, Star, Layers, CheckSquare, History, FileText,
 } from 'lucide-react'
 import { useCicloAtual } from '../api/ciclos'
 
@@ -13,6 +13,7 @@ const NAV = [
   { to: '/nomeacoes',   label: 'Nomeações',           icon: Briefcase },
   { to: '/escolhas',    label: 'Escolha dos Chefes', icon: UserCheck },
   { to: '/designacoes', label: 'Designações PG',     icon: Star },
+  { to: '/alocar',      label: 'Alocar Acervo',      icon: Layers },
   { to: '/encerrar',    label: 'Encerrar Ciclo',     icon: CheckSquare },
   { to: '/historico',   label: 'Histórico',          icon: History },
   { to: '/relatorios',  label: 'Relatórios',         icon: FileText },
